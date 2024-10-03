@@ -2,6 +2,7 @@ package ru.lostgirl.statsview.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
@@ -54,6 +55,12 @@ class StatsView @JvmOverloads constructor(
             invalidate()
         }
 
+    var totalSum: Float = 0F
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         radius = min(w, h) / 2F - lineWidth / 2
         center = PointF(w / 2F, h / 2F)
@@ -67,17 +74,30 @@ class StatsView @JvmOverloads constructor(
         if (data.isEmpty()) {
             return
         }
-
         var startFrom = -90F
+        var startColor = 0
+        // gray baseline
+        paint.color = Color.LTGRAY
+        canvas.drawArc(oval, startFrom, 360F, false, paint)
+
         for ((index, datum) in data.withIndex()) {
-            val angle = 360F * datum
+            if (index == 0) {
+                // save firstColor for repaint start
+                startColor = colors.getOrNull(index) ?: randomColor()
+            }
+            val angle = 360F * (datum / totalSum)
             paint.color = colors.getOrNull(index) ?: randomColor()
             canvas.drawArc(oval, startFrom, angle, false, paint)
             startFrom += angle
+            if (index == data.size - 1 && (data.sum() / totalSum * 100).toInt() >= 100) {
+                // repaint start
+                paint.color = startColor
+                canvas.drawArc(oval, startFrom, 360F * (data.first() / 2 / totalSum), false, paint)
+            }
         }
 
         canvas.drawText(
-            "%.2f%%".format(data.sum() * 100),
+            "%.2f%%".format(data.sum() / totalSum * 100),
             center.x,
             center.y + textPaint.textSize / 4,
             textPaint,
