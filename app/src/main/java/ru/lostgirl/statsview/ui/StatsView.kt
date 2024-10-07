@@ -1,13 +1,14 @@
 package ru.lostgirl.statsview.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import android.view.animation.LinearInterpolator
 import androidx.core.content.withStyledAttributes
 import ru.lostgirl.statsview.R
 import ru.lostgirl.statsview.utils.AndroidUtils
@@ -23,10 +24,15 @@ class StatsView @JvmOverloads constructor(
     private var radius = 0F
     private var center = PointF(0F, 0F)
     private var oval = RectF(0F, 0F, 0F, 0F)
+    private var animationType = StatAnimationType.PARALLEL
 
     private var lineWidth = AndroidUtils.dp(context, 5F).toFloat()
     private var fontSize = AndroidUtils.dp(context, 40F).toFloat()
     private var colors = emptyList<Int>()
+
+    private var progress = 0F
+    private var rotationAngle = 0F
+    private var valueAnimator: ValueAnimator? = null
 
     init {
         context.withStyledAttributes(attrs, R.styleable.StatsView) {
@@ -34,6 +40,10 @@ class StatsView @JvmOverloads constructor(
             fontSize = getDimension(R.styleable.StatsView_fontSize, fontSize)
             val resId = getResourceId(R.styleable.StatsView_colors, 0)
             colors = resources.getIntArray(resId).toList()
+            animationType = StatAnimationType.entries.toTypedArray()[getInteger(
+                R.styleable.StatsView_animationType,
+                0
+            )]
         }
     }
 
@@ -52,13 +62,7 @@ class StatsView @JvmOverloads constructor(
     var data: List<Float> = emptyList()
         set(value) {
             field = value
-            invalidate()
-        }
-
-    var totalSum: Float = 0F
-        set(value) {
-            field = value
-            invalidate()
+            update()
         }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -74,34 +78,71 @@ class StatsView @JvmOverloads constructor(
         if (data.isEmpty()) {
             return
         }
-        var startFrom = -90F
-        var startColor = 0
-        // gray baseline
-        paint.color = Color.LTGRAY
-        canvas.drawArc(oval, startFrom, 360F, false, paint)
 
-        for ((index, datum) in data.withIndex()) {
-            if (index == 0) {
-                // save firstColor for repaint start
-                startColor = colors.getOrNull(index) ?: randomColor()
+        if (animationType == StatAnimationType.PARALLEL) {
+            var startFrom = -90F
+            for ((index, datum) in data.withIndex()) {
+                val angle = 360F * datum
+                paint.color = colors.getOrNull(index) ?: randomColor()
+                canvas.drawArc(oval, startFrom + rotationAngle, angle * progress, false, paint)
+                startFrom += angle
             }
-            val angle = 360F * (datum / totalSum)
-            paint.color = colors.getOrNull(index) ?: randomColor()
-            canvas.drawArc(oval, startFrom, angle, false, paint)
-            startFrom += angle
-            if (index == data.size - 1 && (data.sum() / totalSum * 100).toInt() >= 100) {
-                // repaint start
-                paint.color = startColor
-                canvas.drawArc(oval, startFrom, 360F * (data.first() / 2 / totalSum), false, paint)
+        }
+
+        if (animationType == StatAnimationType.SEQUENTIAL) {
+            var startFrom = -90F
+            for ((index, datum) in data.withIndex()) {
+                val angle = 360F * datum
+                paint.color = colors.getOrNull(index) ?: randomColor()
+                val indexForArc = if ((progress * data.size) - index > 1) 1F else
+                    if ((progress * data.size) - index < 0) 0F else
+                        (progress * data.size) - index
+                canvas.drawArc(
+                    oval, startFrom, angle * indexForArc, false, paint
+                )
+                startFrom += angle
+            }
+        }
+
+        if (animationType == StatAnimationType.DOUBLE_SIDED) {
+            var startFrom = -45F
+            for ((index, datum) in data.withIndex()) {
+                val angle = 360F * datum / 2
+                paint.color = colors.getOrNull(index) ?: randomColor()
+                canvas.drawArc(oval, startFrom, angle * progress, false, paint)
+                canvas.drawArc(oval, startFrom, -angle * progress, false, paint)
+                startFrom += angle + 45F
             }
         }
 
         canvas.drawText(
-            "%.2f%%".format(data.sum() / totalSum * 100),
+            "%.2f%%".format(data.sum() * 100),
             center.x,
             center.y + textPaint.textSize / 4,
             textPaint,
         )
+    }
+
+    private fun update() {
+        valueAnimator?.let {
+            it.removeAllListeners()
+            it.cancel()
+        }
+        progress = 0F
+
+        valueAnimator = ValueAnimator.ofFloat(0F, 1F).apply {
+            addUpdateListener { anim ->
+                progress = anim.animatedValue as Float
+                if (animationType == StatAnimationType.PARALLEL) {
+                    rotationAngle = 360F * anim.animatedValue as Float
+                }
+                invalidate()
+            }
+            duration = 5000
+            interpolator = LinearInterpolator()
+        }.also {
+            it.start()
+        }
     }
 
     private fun randomColor() = Random.nextInt(0xFF000000.toInt(), 0xFFFFFFFF.toInt())

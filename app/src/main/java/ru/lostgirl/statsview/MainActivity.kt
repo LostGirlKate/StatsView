@@ -10,10 +10,31 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         val statsView = findViewById<StatsView>(R.id.stats)
         statsView.data = listOf(
-            500F,
-            500F,
-            500F,
+            0.25F,
+            0.25F,
+            0.25F,
+            0.25F,
         )
-        statsView.totalSum = 2000F
+     //   statsView.totalSum = 2000F
+//        val textView = findViewById<TextView>(R.id.label)
+//
+//        statsView.startAnimation(
+//            AnimationUtils.loadAnimation(this, R.anim.animation).apply {
+//                setAnimationListener(object: Animation.AnimationListener {
+//                    override fun onAnimationStart(p0: Animation?) {
+//                        textView.text = "onAnimationStart"
+//                    }
+//
+//                    override fun onAnimationEnd(p0: Animation?) {
+//                        textView.text = "onAnimationEnd"
+//                    }
+//
+//                    override fun onAnimationRepeat(p0: Animation?) {
+//                        textView.text = "onAnimationRepeat"
+//                    }
+//
+//                })
+//            }
+//        )
     }
 }
